@@ -42,14 +42,9 @@ namespace Microsoft.WindowsAzure.Commands.Utilities.Common.Authentication
             this.parentWindow = parentWindow;
         }
 
-        public IAccessToken GetNewToken(AdalConfiguration config, string userId, SecureString password)
+        public IAccessToken GetAccessToken(AdalConfiguration config, ShowDialog promptBevavior, string userId, SecureString password)
         {
-            return new AdalAccessToken(AcquireToken(config, false, userId, password), this, config);
-        }
-
-        public IAccessToken GetCachedToken(AdalConfiguration config, string userId, SecureString password)
-        {
-            return new AdalAccessToken(AcquireToken(config, true, userId, password), this, config);
+            return new AdalAccessToken(AcquireToken(config, promptBevavior, userId, password), this, config);
         }
 
         private readonly static TimeSpan thresholdExpiration = new TimeSpan(0, 5, 0);
@@ -70,7 +65,7 @@ namespace Microsoft.WindowsAzure.Commands.Utilities.Common.Authentication
         {
             if (IsExpired(token))
             {
-                AuthenticationResult result = AcquireToken(token.Configuration, true);
+                AuthenticationResult result = AcquireToken(token.Configuration, ShowDialog.Never);
 
                 if (result == null)
                 {
@@ -93,7 +88,7 @@ namespace Microsoft.WindowsAzure.Commands.Utilities.Common.Authentication
 
         // We have to run this in a separate thread to guarantee that it's STA. This method
         // handles the threading details.
-        private AuthenticationResult AcquireToken(AdalConfiguration config, bool noPrompt, string userId = null, SecureString password = null)
+        private AuthenticationResult AcquireToken(AdalConfiguration config, ShowDialog promptBevavior, string userId = null, SecureString password = null)
         {
             AuthenticationResult result = null;
             Exception ex = null;
@@ -102,25 +97,18 @@ namespace Microsoft.WindowsAzure.Commands.Utilities.Common.Authentication
             {
                 try
                 {
-                    result = AquireToken(config, noPrompt, userId, password);
+                    result = AquireToken(config, promptBevavior, userId, password);
                 }
                 catch (AdalException adalEx)
                 {
                     if (adalEx.ErrorCode == AdalError.UserInteractionRequired ||
                         adalEx.ErrorCode == AdalError.MultipleTokensMatched)
                     {
-                        try
-                        {
-                            result = AquireToken(config, false, userId, password);
-                        }
-                        catch (Exception threadEx)
-                        {
-                            ex = threadEx;
-                        }
+                        ex = new AadAuthenticationFailedWithoutPopupException(Resources.InvalidSubscriptionState, adalEx);
                     }
                     else if (adalEx.ErrorCode == AdalError.MissingFederationMetadataUrl)
                     {
-                        ex = new Exception(Resources.CredentialOrganizationIdMessage, adalEx);
+                        ex = new AadAuthenticationFailedException(Resources.CredentialOrganizationIdMessage, adalEx);
                     }
                     else
                     {
@@ -147,25 +135,26 @@ namespace Microsoft.WindowsAzure.Commands.Utilities.Common.Authentication
                         throw new AadAuthenticationCanceledException(adex.Message, adex);
                     }
                 }
+                if (ex is AadAuthenticationException)
+                {
+                    throw ex;
+                }
                 throw new AadAuthenticationFailedException(GetExceptionMessage(ex), ex);
             }
 
             return result;
         }
 
-        private AuthenticationResult AquireToken(AdalConfiguration config, bool noPrompt, string userId, SecureString password)
+        private AuthenticationResult AquireToken(AdalConfiguration config, ShowDialog showDialog, string userId, SecureString password)
         {
             AuthenticationResult result;
             var context = CreateContext(config);
 
             if (string.IsNullOrEmpty(userId))
             {
-                var promptBehavior = PromptBehavior.Always;
-                if (noPrompt)
-                {
-                    promptBehavior = PromptBehavior.Never;
-                }
-                else
+                PromptBehavior promptBehavior = (PromptBehavior)Enum.Parse(typeof(PromptBehavior), showDialog.ToString());
+
+                if (promptBehavior != PromptBehavior.Never)
                 {
                     ClearCookies();
                 }
@@ -175,11 +164,7 @@ namespace Microsoft.WindowsAzure.Commands.Utilities.Common.Authentication
             }
             else
             {
-                var promptBehavior = PromptBehavior.Auto;
-                if (noPrompt)
-                {
-                    promptBehavior = PromptBehavior.Never;
-                }
+                PromptBehavior promptBehavior = (PromptBehavior)Enum.Parse(typeof(PromptBehavior), showDialog.ToString());
 
                 if (password == null)
                 {

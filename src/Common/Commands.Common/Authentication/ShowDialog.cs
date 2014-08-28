@@ -12,24 +12,12 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------------
 
-using System.Security;
-
 namespace Microsoft.WindowsAzure.Commands.Utilities.Common.Authentication
 {
-    /// <summary>
-    /// This interface represents objects that can be used
-    /// to obtain and manage access tokens.
-    /// </summary>
-    public interface ITokenProvider
+    public enum ShowDialog
     {
-        /// <summary>
-        /// Get a new login token for the given environment and user credentials.
-        /// </summary>
-        /// <param name="config">Configuration.</param>
-        /// <param name="promptBehavior">Prompt behavior.</param>
-        /// <param name="userId">User ID to get the token for.</param>
-        /// <param name="password">Secure strings with password</param>
-        /// <returns>An access token.</returns>
-        IAccessToken GetAccessToken(AdalConfiguration config, ShowDialog promptBehavior, string userId, SecureString password);
+        Auto,
+        Always,
+        Never
     }
 }

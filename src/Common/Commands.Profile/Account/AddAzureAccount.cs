@@ -44,10 +44,10 @@ namespace Microsoft.WindowsAzure.Commands.Profile
             {
                 userCredentials.UserName = Credential.UserName;
                 userCredentials.Password = Credential.Password;
-                userCredentials.NoPrompt = false;
+                userCredentials.ShowDialog = ShowDialog.Always;
             }
 
-            var account = ProfileClient.AddAccount(userCredentials, Environment);
+            var account = ProfileClient.AddAccount(userCredentials, ProfileClient.GetEnvironmentOrDefault(Environment));
 
             WriteVerbose(string.Format(Resources.AddAccountAdded, userCredentials.UserName));
             WriteVerbose(string.Format(Resources.AddAccountShowDefaultSubscription, ProfileClient.Profile.DefaultSubscription.Name));
